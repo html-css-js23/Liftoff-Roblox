@@ -30,7 +30,8 @@ healthGui.Parent = player.PlayerGui
 local healthPanel = Instance.new("Frame")
 healthPanel.Name = "HealthPanel"
 healthPanel.AnchorPoint = Vector2.new(0, 1)
-healthPanel.Position = UDim2.new(0, 18, 1, -18)
+-- Raised above the money HUD pill/rebirth badge stack so they don't overlap
+healthPanel.Position = UDim2.new(0, 18, 1, -114)
 healthPanel.Size = UDim2.fromOffset(270, 68)
 healthPanel.BackgroundColor3 = Color3.fromRGB(18, 20, 24)
 healthPanel.BackgroundTransparency = 0.08
@@ -757,3 +758,376 @@ local function scream()
 end
 
 screamButton.Activated:Connect(scream)
+
+-- ============================================
+-- MONEY HUD (small pill, bottom-left) + ANIMATED MENU
+-- ============================================
+
+local leaderstats = player:WaitForChild("leaderstats", 30)
+if not leaderstats then
+	warn("GameUI: Failed to load leaderstats!")
+else
+	local addCashRemote = ReplicatedStorage:WaitForChild("AddCash", 30)
+	local rebirthRemote = ReplicatedStorage:WaitForChild("Rebirth", 30)
+	local getCashRemote = ReplicatedStorage:WaitForChild("GetCash", 30)
+	local getRebirthsRemote = ReplicatedStorage:WaitForChild("GetRebirths", 30)
+
+	if not (addCashRemote and rebirthRemote and getCashRemote and getRebirthsRemote) then
+		warn("GameUI: Failed to load remotes!")
+	else
+		local GREEN = Color3.fromRGB(87, 227, 118)
+		local WHITE = Color3.fromRGB(245, 245, 245)
+		local BLACK = Color3.fromRGB(18, 18, 20)
+		local PURPLE = Color3.fromRGB(170, 110, 255)
+		local REBIRTH_COST = 1000
+
+		local hud = Instance.new("ScreenGui")
+		hud.Name = "MoneyHUD"
+		hud.ResetOnSpawn = false
+		hud.IgnoreGuiInset = true
+		hud.DisplayOrder = 100
+		hud.Parent = player:WaitForChild("PlayerGui")
+
+		-- Scales the whole HUD to fit phones/tablets/desktop consistently
+		local uiScale = Instance.new("UIScale")
+		uiScale.Scale = 1
+		uiScale.Parent = hud
+
+		local function fitScale()
+			local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			local scale = math.clamp(viewport.Y / 720, 0.7, 1.15)
+			uiScale.Scale = scale
+		end
+		fitScale()
+		workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(fitScale)
+		if workspace.CurrentCamera then
+			workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fitScale)
+		end
+
+		-- ===== Cash pill (small, left side) =====
+		local pill = Instance.new("Frame")
+		pill.Name = "CashPill"
+		pill.AnchorPoint = Vector2.new(0, 1)
+		pill.Position = UDim2.new(0, 16, 1, -16)
+		pill.Size = UDim2.fromOffset(150, 44)
+		pill.BackgroundColor3 = BLACK
+		pill.BorderSizePixel = 0
+		pill.Parent = hud
+
+		local pillCorner = Instance.new("UICorner")
+		pillCorner.CornerRadius = UDim.new(1, 0)
+		pillCorner.Parent = pill
+
+		local pillStroke = Instance.new("UIStroke")
+		pillStroke.Color = GREEN
+		pillStroke.Thickness = 2
+		pillStroke.Transparency = 0.2
+		pillStroke.Parent = pill
+
+		local cashIcon = Instance.new("Frame")
+		cashIcon.Name = "Icon"
+		cashIcon.AnchorPoint = Vector2.new(0, 0.5)
+		cashIcon.Position = UDim2.new(0, 4, 0.5, 0)
+		cashIcon.Size = UDim2.fromOffset(36, 36)
+		cashIcon.BackgroundColor3 = GREEN
+		cashIcon.BorderSizePixel = 0
+		cashIcon.Parent = pill
+
+		local cashIconCorner = Instance.new("UICorner")
+		cashIconCorner.CornerRadius = UDim.new(1, 0)
+		cashIconCorner.Parent = cashIcon
+
+		local cashIconLabel = Instance.new("TextLabel")
+		cashIconLabel.BackgroundTransparency = 1
+		cashIconLabel.Size = UDim2.fromScale(1, 1)
+		cashIconLabel.Text = "$"
+		cashIconLabel.TextColor3 = BLACK
+		cashIconLabel.Font = Enum.Font.GothamBlack
+		cashIconLabel.TextSize = 20
+		cashIconLabel.Parent = cashIcon
+
+		local cashText = Instance.new("TextLabel")
+		cashText.Name = "CashText"
+		cashText.BackgroundTransparency = 1
+		cashText.AnchorPoint = Vector2.new(0, 0.5)
+		cashText.Position = UDim2.new(0, 46, 0.5, 0)
+		cashText.Size = UDim2.new(1, -80, 1, 0)
+		cashText.Text = "100"
+		cashText.TextColor3 = WHITE
+		cashText.Font = Enum.Font.GothamBold
+		cashText.TextSize = 20
+		cashText.TextXAlignment = Enum.TextXAlignment.Left
+		cashText.Parent = pill
+
+		-- Plus button that opens the menu
+		local plusButton = Instance.new("TextButton")
+		plusButton.Name = "PlusButton"
+		plusButton.AnchorPoint = Vector2.new(1, 0.5)
+		plusButton.Position = UDim2.new(1, -4, 0.5, 0)
+		plusButton.Size = UDim2.fromOffset(34, 34)
+		plusButton.BackgroundColor3 = GREEN
+		plusButton.BorderSizePixel = 0
+		plusButton.Text = "+"
+		plusButton.TextColor3 = BLACK
+		plusButton.Font = Enum.Font.GothamBlack
+		plusButton.TextSize = 22
+		plusButton.AutoButtonColor = false
+		plusButton.Parent = pill
+
+		local plusCorner = Instance.new("UICorner")
+		plusCorner.CornerRadius = UDim.new(1, 0)
+		plusCorner.Parent = plusButton
+
+		-- ===== Rebirths mini badge (above pill) =====
+		local rebirthBadge = Instance.new("Frame")
+		rebirthBadge.Name = "RebirthBadge"
+		rebirthBadge.AnchorPoint = Vector2.new(0, 1)
+		rebirthBadge.Position = UDim2.new(0, 16, 1, -66)
+		rebirthBadge.Size = UDim2.fromOffset(120, 32)
+		rebirthBadge.BackgroundColor3 = BLACK
+		rebirthBadge.BorderSizePixel = 0
+		rebirthBadge.Parent = hud
+
+		local rebirthBadgeCorner = Instance.new("UICorner")
+		rebirthBadgeCorner.CornerRadius = UDim.new(1, 0)
+		rebirthBadgeCorner.Parent = rebirthBadge
+
+		local rebirthBadgeStroke = Instance.new("UIStroke")
+		rebirthBadgeStroke.Color = PURPLE
+		rebirthBadgeStroke.Thickness = 2
+		rebirthBadgeStroke.Transparency = 0.2
+		rebirthBadgeStroke.Parent = rebirthBadge
+
+		local rebirthText = Instance.new("TextLabel")
+		rebirthText.BackgroundTransparency = 1
+		rebirthText.Size = UDim2.fromScale(1, 1)
+		rebirthText.Text = "✦ 0 Rebirths"
+		rebirthText.TextColor3 = PURPLE
+		rebirthText.Font = Enum.Font.GothamBold
+		rebirthText.TextSize = 14
+		rebirthText.Parent = rebirthBadge
+
+		-- ===== Menu overlay (gamepasses + rebirth), animated open/close =====
+		local menuOverlay = Instance.new("Frame")
+		menuOverlay.Name = "MenuOverlay"
+		menuOverlay.BackgroundColor3 = BLACK
+		menuOverlay.BackgroundTransparency = 1
+		menuOverlay.Size = UDim2.fromScale(1, 1)
+		menuOverlay.Visible = false
+		menuOverlay.ZIndex = 10
+		menuOverlay.Parent = hud
+
+		local menuCard = Instance.new("Frame")
+		menuCard.Name = "MenuCard"
+		menuCard.AnchorPoint = Vector2.new(0, 1)
+		menuCard.Position = UDim2.new(0, 16, 1, -16)
+		menuCard.Size = UDim2.fromOffset(280, 0)
+		menuCard.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+		menuCard.BorderSizePixel = 0
+		menuCard.ClipsDescendants = true
+		menuCard.ZIndex = 11
+		menuCard.Parent = menuOverlay
+
+		local menuCorner = Instance.new("UICorner")
+		menuCorner.CornerRadius = UDim.new(0, 16)
+		menuCorner.Parent = menuCard
+
+		local menuStroke = Instance.new("UIStroke")
+		menuStroke.Color = GREEN
+		menuStroke.Thickness = 2
+		menuStroke.Transparency = 0.3
+		menuStroke.Parent = menuCard
+
+		local menuList = Instance.new("UIListLayout")
+		menuList.Padding = UDim.new(0, 8)
+		menuList.SortOrder = Enum.SortOrder.LayoutOrder
+		menuList.Parent = menuCard
+
+		local menuPadding = Instance.new("UIPadding")
+		menuPadding.PaddingTop = UDim.new(0, 14)
+		menuPadding.PaddingBottom = UDim.new(0, 14)
+		menuPadding.PaddingLeft = UDim.new(0, 14)
+		menuPadding.PaddingRight = UDim.new(0, 14)
+		menuPadding.Parent = menuCard
+
+		local menuTitle = Instance.new("TextLabel")
+		menuTitle.Name = "Title"
+		menuTitle.LayoutOrder = 1
+		menuTitle.BackgroundTransparency = 1
+		menuTitle.Size = UDim2.new(1, 0, 0, 26)
+		menuTitle.Text = "SHOP"
+		menuTitle.TextColor3 = WHITE
+		menuTitle.Font = Enum.Font.GothamBlack
+		menuTitle.TextSize = 20
+		menuTitle.TextXAlignment = Enum.TextXAlignment.Left
+		menuTitle.Parent = menuCard
+
+		-- Rebirth row inside the menu
+		local rebirthRow = Instance.new("TextButton")
+		rebirthRow.Name = "RebirthRow"
+		rebirthRow.LayoutOrder = 2
+		rebirthRow.Size = UDim2.new(1, 0, 0, 52)
+		rebirthRow.BackgroundColor3 = PURPLE
+		rebirthRow.BorderSizePixel = 0
+		rebirthRow.AutoButtonColor = false
+		rebirthRow.Text = ""
+		rebirthRow.Parent = menuCard
+
+		local rebirthRowCorner = Instance.new("UICorner")
+		rebirthRowCorner.CornerRadius = UDim.new(0, 10)
+		rebirthRowCorner.Parent = rebirthRow
+
+		local rebirthRowLabel = Instance.new("TextLabel")
+		rebirthRowLabel.BackgroundTransparency = 1
+		rebirthRowLabel.Size = UDim2.fromScale(1, 1)
+		rebirthRowLabel.Text = "✦ REBIRTH — Cost $" .. tostring(REBIRTH_COST)
+		rebirthRowLabel.TextColor3 = WHITE
+		rebirthRowLabel.Font = Enum.Font.GothamBold
+		rebirthRowLabel.TextSize = 15
+		rebirthRowLabel.Parent = rebirthRow
+
+		-- Example gamepass row (placeholder, easy to duplicate for more passes)
+		local gamepassRow = Instance.new("TextButton")
+		gamepassRow.Name = "GamepassRow"
+		gamepassRow.LayoutOrder = 3
+		gamepassRow.Size = UDim2.new(1, 0, 0, 52)
+		gamepassRow.BackgroundColor3 = GREEN
+		gamepassRow.BorderSizePixel = 0
+		gamepassRow.AutoButtonColor = false
+		gamepassRow.Text = ""
+		gamepassRow.Parent = menuCard
+
+		local gamepassRowCorner = Instance.new("UICorner")
+		gamepassRowCorner.CornerRadius = UDim.new(0, 10)
+		gamepassRowCorner.Parent = gamepassRow
+
+		local gamepassRowLabel = Instance.new("TextLabel")
+		gamepassRowLabel.BackgroundTransparency = 1
+		gamepassRowLabel.Size = UDim2.fromScale(1, 1)
+		gamepassRowLabel.Text = "💎 2x CASH GAMEPASS"
+		gamepassRowLabel.TextColor3 = BLACK
+		gamepassRowLabel.Font = Enum.Font.GothamBold
+		gamepassRowLabel.TextSize = 15
+		gamepassRowLabel.Parent = gamepassRow
+
+		local closeButton = Instance.new("TextButton")
+		closeButton.Name = "CloseButton"
+		closeButton.LayoutOrder = 4
+		closeButton.Size = UDim2.new(1, 0, 0, 36)
+		closeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 56)
+		closeButton.BorderSizePixel = 0
+		closeButton.Text = "CLOSE"
+		closeButton.TextColor3 = WHITE
+		closeButton.Font = Enum.Font.GothamBold
+		closeButton.TextSize = 14
+		closeButton.Parent = menuCard
+
+		local closeButtonCorner = Instance.new("UICorner")
+		closeButtonCorner.CornerRadius = UDim.new(0, 8)
+		closeButtonCorner.Parent = closeButton
+
+		local MENU_OPEN_HEIGHT = 226
+		local menuOpen = false
+
+		local function setMenuOpen(open: boolean)
+			if open == menuOpen then return end
+			menuOpen = open
+
+			if open then
+				menuOverlay.Visible = true
+			end
+
+			local cardGoal = { Size = UDim2.fromOffset(280, open and MENU_OPEN_HEIGHT or 0) }
+			local overlayGoal = { BackgroundTransparency = open and 0.55 or 1 }
+			local plusGoal = { Rotation = open and 45 or 0 }
+
+			local tweenInfo = TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+			TweenService:Create(menuCard, tweenInfo, cardGoal):Play()
+			TweenService:Create(menuOverlay, TweenInfo.new(0.2), overlayGoal):Play()
+			TweenService:Create(plusButton, TweenInfo.new(0.2), plusGoal):Play()
+
+			if not open then
+				task.delay(0.28, function()
+					if not menuOpen then
+						menuOverlay.Visible = false
+					end
+				end)
+			end
+		end
+
+		plusButton.MouseButton1Click:Connect(function()
+			setMenuOpen(not menuOpen)
+		end)
+
+		menuOverlay.MouseButton1Click:Connect(function()
+			setMenuOpen(false)
+		end)
+		closeButton.MouseButton1Click:Connect(function()
+			setMenuOpen(false)
+		end)
+
+		-- Small press animation, common in "brainrot" style game UIs
+		local function bounce(target: TextButton)
+			target.MouseButton1Down:Connect(function()
+				TweenService:Create(target, TweenInfo.new(0.08), { Size = target.Size - UDim2.fromOffset(4, 4) }):Play()
+			end)
+			target.MouseButton1Up:Connect(function()
+				TweenService:Create(target, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = target.Size + UDim2.fromOffset(4, 4) }):Play()
+			end)
+		end
+		bounce(plusButton)
+		bounce(rebirthRow)
+		bounce(gamepassRow)
+
+		-- Pop-in entrance animation for the whole HUD
+		pill.Size = UDim2.fromOffset(0, 44)
+		rebirthBadge.Size = UDim2.fromOffset(0, 32)
+		TweenService:Create(pill, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(150, 44) }):Play()
+		TweenService:Create(rebirthBadge, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(120, 32) }):Play()
+
+		-- Cash pop animation whenever cash increases
+		local lastCash = leaderstats.Cash.Value
+		local function updateDisplay()
+			local cash = getCashRemote:InvokeServer()
+			local rebirths = getRebirthsRemote:InvokeServer()
+
+			cashText.Text = tostring(cash)
+			rebirthText.Text = "✦ " .. tostring(rebirths) .. " Rebirths"
+			rebirthRowLabel.Text = "✦ REBIRTH — Cost $" .. tostring(REBIRTH_COST)
+
+			if cash > lastCash then
+				TweenService:Create(cashIcon, TweenInfo.new(0.1), { Size = UDim2.fromOffset(42, 42) }):Play()
+				task.delay(0.1, function()
+					TweenService:Create(cashIcon, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(36, 36) }):Play()
+				end)
+			end
+			lastCash = cash
+
+			local canRebirth = cash >= REBIRTH_COST
+			rebirthRow.BackgroundTransparency = canRebirth and 0 or 0.55
+			rebirthRowLabel.TextTransparency = canRebirth and 0 or 0.4
+		end
+
+		leaderstats.Cash:GetPropertyChangedSignal("Value"):Connect(updateDisplay)
+		leaderstats.Rebirths:GetPropertyChangedSignal("Value"):Connect(updateDisplay)
+
+		local isRebirthProcessing = false
+		rebirthRow.MouseButton1Click:Connect(function()
+			if isRebirthProcessing then return end
+			local cash = getCashRemote:InvokeServer()
+			if cash < REBIRTH_COST then return end
+			isRebirthProcessing = true
+			rebirthRemote:InvokeServer()
+			setMenuOpen(false)
+			task.wait(0.3)
+			isRebirthProcessing = false
+		end)
+
+		gamepassRow.MouseButton1Click:Connect(function()
+			-- Hook up MarketplaceService:PromptGamePassPurchase here once gamepass IDs exist
+			print("[GameUI] Gamepass row clicked - wire up gamepass id here")
+		end)
+
+		updateDisplay()
+	end
+end

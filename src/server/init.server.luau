@@ -389,3 +389,146 @@ Players.PlayerRemoving:Connect(function(player)
 		end
 	end
 end)
+
+-- ============================================
+-- LEADERBOARD & MONEY SYSTEM
+-- ============================================
+
+local DataStoreService = game:GetService("DataStoreService")
+local playerDataStore = DataStoreService:GetDataStore("PlayerData")
+
+-- Economy Config
+local INITIAL_CASH = 100
+local INITIAL_REBIRTHS = 0
+local REBIRTH_COST = 1000
+
+-- Create remotes for money system
+local addCashRemote = Instance.new("RemoteFunction")
+addCashRemote.Name = "AddCash"
+addCashRemote.Parent = ReplicatedStorage
+
+local rebirthRemote = Instance.new("RemoteFunction")
+rebirthRemote.Name = "Rebirth"
+rebirthRemote.Parent = ReplicatedStorage
+
+local getCashRemote = Instance.new("RemoteFunction")
+getCashRemote.Name = "GetCash"
+getCashRemote.Parent = ReplicatedStorage
+
+local getRebirthsRemote = Instance.new("RemoteFunction")
+getRebirthsRemote.Name = "GetRebirths"
+getRebirthsRemote.Parent = ReplicatedStorage
+
+-- Create leaderboard for player
+local function createLeaderboard(player: Player)
+	local leaderstats = Instance.new("Folder")
+	leaderstats.Name = "leaderstats"
+	leaderstats.Parent = player
+
+	local cashValue = Instance.new("IntValue")
+	cashValue.Name = "Cash"
+	cashValue.Value = INITIAL_CASH
+	cashValue.Parent = leaderstats
+
+	local rebirthsValue = Instance.new("IntValue")
+	rebirthsValue.Name = "Rebirths"
+	rebirthsValue.Value = INITIAL_REBIRTHS
+	rebirthsValue.Parent = leaderstats
+	
+	return leaderstats
+end
+
+-- Get the Cash/Rebirths IntValues for a player, or nil if not ready yet
+local function getStats(player: Player)
+	local leaderstatsFolder = player:FindFirstChild("leaderstats")
+	if not leaderstatsFolder then
+		return nil
+	end
+	local cash = leaderstatsFolder:FindFirstChild("Cash")
+	local rebirths = leaderstatsFolder:FindFirstChild("Rebirths")
+	if not (cash and cash:IsA("IntValue") and rebirths and rebirths:IsA("IntValue")) then
+		return nil
+	end
+	return cash, rebirths
+end
+
+-- Load player data from DataStore
+local function loadPlayerData(player: Player)
+	local success, data = pcall(function()
+		return playerDataStore:GetAsync("Player_" .. player.UserId)
+	end)
+
+	local cash, rebirths = getStats(player)
+	if success and data and cash and rebirths then
+		cash.Value = data.cash or INITIAL_CASH
+		rebirths.Value = data.rebirths or INITIAL_REBIRTHS
+	end
+end
+
+-- Save player data to DataStore
+local function savePlayerData(player: Player)
+	local cash, rebirths = getStats(player)
+	if not (cash and rebirths) then return end
+
+	local data = {
+		cash = cash.Value,
+		rebirths = rebirths.Value,
+	}
+
+	pcall(function()
+		playerDataStore:SetAsync("Player_" .. player.UserId, data)
+	end)
+end
+
+-- Remote function handlers
+function addCashRemote.OnServerInvoke(player: Player, amount: number)
+	local cash = getStats(player)
+	if not cash then return false end
+	if amount < 0 then return false end
+	cash.Value = cash.Value + amount
+	return true
+end
+
+function rebirthRemote.OnServerInvoke(player: Player)
+	local cash, rebirths = getStats(player)
+	if not (cash and rebirths) then return false end
+	if cash.Value < REBIRTH_COST then
+		return false
+	end
+	cash.Value = INITIAL_CASH
+	rebirths.Value = rebirths.Value + 1
+	return true
+end
+
+function getCashRemote.OnServerInvoke(player: Player)
+	local cash = getStats(player)
+	if not cash then return 0 end
+	return cash.Value
+end
+
+function getRebirthsRemote.OnServerInvoke(player: Player)
+	local _, rebirths = getStats(player)
+	if not rebirths then return 0 end
+	return rebirths.Value
+end
+
+-- Player leaderboard setup - runs alongside the existing PlayerAdded/PlayerRemoving connections above
+Players.PlayerAdded:Connect(function(player: Player)
+	createLeaderboard(player)
+	task.wait(0.5)
+	loadPlayerData(player)
+end)
+
+Players.PlayerRemoving:Connect(function(player: Player)
+	savePlayerData(player)
+end)
+
+-- Auto-save every 30 seconds
+task.spawn(function()
+	while true do
+		task.wait(30)
+		for _, activePlayer in pairs(Players:GetPlayers()) do
+			savePlayerData(activePlayer)
+		end
+	end
+end)
