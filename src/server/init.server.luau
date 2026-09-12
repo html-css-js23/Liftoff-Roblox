@@ -1,6 +1,9 @@
 local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ServerStorage = game:GetService("ServerStorage")
+local Debris = game:GetService("Debris")
 
 Players.RespawnTime = 0.1
 
@@ -9,6 +12,13 @@ if not screamRemote then
 	screamRemote = Instance.new("RemoteEvent")
 	screamRemote.Name = "ScreamRemote"
 	screamRemote.Parent = ReplicatedStorage
+end
+
+local cashPurchaseGrantedRemote = ReplicatedStorage:FindFirstChild("CashPurchaseGranted")
+if not cashPurchaseGrantedRemote then
+	cashPurchaseGrantedRemote = Instance.new("RemoteEvent")
+	cashPurchaseGrantedRemote.Name = "CashPurchaseGranted"
+	cashPurchaseGrantedRemote.Parent = ReplicatedStorage
 end
 
 local lastScream = {}
@@ -21,6 +31,23 @@ local comboWindow = 3
 local plotSize = Vector3.new(32, 0.5, 32)
 local plotSpacing = 42
 local wallHeight = 10
+local SCREAM_SOUND_ID = "rbxassetid://132134488430887"
+local storedScreamSound = ServerStorage:FindFirstChild("Scream")
+local screamSoundTemplate: Sound
+if storedScreamSound and storedScreamSound:IsA("Sound") then
+	screamSoundTemplate = storedScreamSound
+else
+	if storedScreamSound then
+		warn("ServerStorage.Scream is not a Sound; using a runtime scream sound instead")
+	end
+	screamSoundTemplate = Instance.new("Sound")
+	screamSoundTemplate.Name = "ScreamRuntime"
+	screamSoundTemplate.Parent = ServerStorage
+end
+screamSoundTemplate.SoundId = SCREAM_SOUND_ID
+screamSoundTemplate.Volume = 0.03
+screamSoundTemplate.RollOffMinDistance = 10
+screamSoundTemplate.RollOffMaxDistance = 90
 
 local killParts = workspace:FindFirstChild("killParts")
 
@@ -276,6 +303,7 @@ local function damagePlayersInScream(player: Player)
 	local maximumDistance = 25
 	local minimumDot = 0.55
 	local hits = comboHits[player] or {}
+	local flungCharacter: Model? = nil
 	local sourcePlot = getPlotAtPosition(mouthPosition)
 	if sourcePlot and sourcePlot.owner and sourcePlot.owner ~= player then
 		return
@@ -307,6 +335,7 @@ local function damagePlayersInScream(player: Player)
 								targetHumanoid:ChangeState(Enum.HumanoidStateType.Ragdoll)
 								targetRoot.AssemblyAngularVelocity = Vector3.new(-10, 8, 12)
 								targetRoot:ApplyImpulse((screamDirection * 85 + Vector3.new(0, 70, 0)) * targetRoot.AssemblyMass)
+								flungCharacter = targetCharacter
 								task.delay(3.5, function()
 									if targetRoot.Parent and targetHumanoid.Health > 0 then
 										targetHumanoid.PlatformStand = false
@@ -326,6 +355,7 @@ local function damagePlayersInScream(player: Player)
 		end
 	end
 	comboHits[player] = hits
+	return flungCharacter
 end
 
 local function hasIntruderInPlot(plot, owner: Player): boolean
@@ -342,6 +372,21 @@ local function hasIntruderInPlot(plot, owner: Player): boolean
 		end
 	end
 	return false
+end
+
+local function playScreamSound(character: Model)
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+
+	local sound = screamSoundTemplate:Clone()
+	sound.Parent = root
+	sound:Play()
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
+	Debris:AddItem(sound, 30)
 end
 
 screamRemote.OnServerEvent:Connect(function(player: Player)
@@ -363,7 +408,10 @@ screamRemote.OnServerEvent:Connect(function(player: Player)
 		return
 	end
 	lastScream[player] = now
-	damagePlayersInScream(player)
+	local flungCharacter = damagePlayersInScream(player)
+	if flungCharacter then
+		playScreamSound(flungCharacter)
+	end
 	screamRemote:FireAllClients("Scream", player)
 end)
 
@@ -401,12 +449,11 @@ local playerDataStore = DataStoreService:GetDataStore("PlayerData")
 local INITIAL_CASH = 100
 local INITIAL_REBIRTHS = 0
 local REBIRTH_COST = 1000
+local CASH_PRODUCT_REWARDS = {
+	[3712530477] = 100,
+}
 
 -- Create remotes for money system
-local addCashRemote = Instance.new("RemoteFunction")
-addCashRemote.Name = "AddCash"
-addCashRemote.Parent = ReplicatedStorage
-
 local rebirthRemote = Instance.new("RemoteFunction")
 rebirthRemote.Name = "Rebirth"
 rebirthRemote.Parent = ReplicatedStorage
@@ -468,27 +515,95 @@ end
 -- Save player data to DataStore
 local function savePlayerData(player: Player)
 	local cash, rebirths = getStats(player)
-	if not (cash and rebirths) then return end
+	if not (cash and rebirths) then return false end
 
 	local data = {
 		cash = cash.Value,
 		rebirths = rebirths.Value,
 	}
 
-	pcall(function()
+	local success, errorMessage = pcall(function()
 		playerDataStore:SetAsync("Player_" .. player.UserId, data)
+	end)
+	if not success then
+		warn("Failed to save player data for " .. player.Name .. ": " .. tostring(errorMessage))
+	end
+	return success
+end
+
+local grantedCashPurchases = {}
+
+local function grantCashPurchase(player: Player, cashReward: number, purchaseKey: string): boolean
+	if grantedCashPurchases[purchaseKey] then
+		return true
+	end
+
+	local cash = getStats(player)
+	if not cash then
+		return false
+	end
+
+	cash.Value += cashReward
+	if not savePlayerData(player) and not RunService:IsStudio() then
+		cash.Value -= cashReward
+		return false
+	end
+
+	grantedCashPurchases[purchaseKey] = true
+	task.delay(30, function()
+		grantedCashPurchases[purchaseKey] = nil
+	end)
+	print(string.format("Granted %d cash to %s for purchase %s", cashReward, player.Name, purchaseKey))
+	cashPurchaseGrantedRemote:FireClient(player, cashReward, cash.Value)
+	return true
+end
+
+local function processCashReceipt(receiptInfo, cashReward: number)
+	print(string.format("Processing cash purchase %s for player %d", receiptInfo.PurchaseId, receiptInfo.PlayerId))
+
+	local player = Players:GetPlayerByUserId(receiptInfo.PlayerId)
+	if not player then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	local purchaseKey = if RunService:IsStudio()
+		then string.format("studio:%d:%d", receiptInfo.PlayerId, receiptInfo.ProductId)
+		else receiptInfo.PurchaseId
+	if not grantCashPurchase(player, cashReward, purchaseKey) then
+		warn("Cash purchase could not be saved; Roblox will retry receipt " .. receiptInfo.PurchaseId)
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	return Enum.ProductPurchaseDecision.PurchaseGranted
+end
+
+-- Wait for startup before setting the one callback Roblox permits.
+task.delay(2, function()
+	MarketplaceService.ProcessReceipt = function(receiptInfo)
+		local cashReward = CASH_PRODUCT_REWARDS[receiptInfo.ProductId]
+		if cashReward then
+			return processCashReceipt(receiptInfo, cashReward)
+		end
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+	print("Cash purchase receipt handler registered")
+end)
+
+if RunService:IsStudio() then
+	MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId, productId, isPurchased)
+		local cashReward = CASH_PRODUCT_REWARDS[productId]
+		if not isPurchased or not cashReward then
+			return
+		end
+
+		local player = Players:GetPlayerByUserId(userId)
+		if player then
+			grantCashPurchase(player, cashReward, string.format("studio:%d:%d", userId, productId))
+		end
 	end)
 end
 
 -- Remote function handlers
-function addCashRemote.OnServerInvoke(player: Player, amount: number)
-	local cash = getStats(player)
-	if not cash then return false end
-	if amount < 0 then return false end
-	cash.Value = cash.Value + amount
-	return true
-end
-
 function rebirthRemote.OnServerInvoke(player: Player)
 	local cash, rebirths = getStats(player)
 	if not (cash and rebirths) then return false end

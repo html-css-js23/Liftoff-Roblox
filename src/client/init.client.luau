@@ -767,23 +767,16 @@ local leaderstats = player:WaitForChild("leaderstats", 30)
 if not leaderstats then
 	warn("GameUI: Failed to load leaderstats!")
 else
-	local addCashRemote = ReplicatedStorage:WaitForChild("AddCash", 30)
-	local rebirthRemote = ReplicatedStorage:WaitForChild("Rebirth", 30)
 	local getCashRemote = ReplicatedStorage:WaitForChild("GetCash", 30)
-	local getRebirthsRemote = ReplicatedStorage:WaitForChild("GetRebirths", 30)
+	local cashPurchaseGrantedRemote = ReplicatedStorage:WaitForChild("CashPurchaseGranted", 30)
 
-	if not (addCashRemote and rebirthRemote and getCashRemote and getRebirthsRemote) then
+	if not (getCashRemote and cashPurchaseGrantedRemote) then
 		warn("GameUI: Failed to load remotes!")
 	else
 		local GREEN = Color3.fromRGB(87, 227, 118)
 		local WHITE = Color3.fromRGB(245, 245, 245)
 		local BLACK = Color3.fromRGB(18, 18, 20)
-		local PURPLE = Color3.fromRGB(170, 110, 255)
-		local REBIRTH_COST = 1000
-
 		-- ===== Developer Product configuration =====
-		-- TODO: Replace with your actual developer product ID from Roblox monetization settings
-		-- To create a developer product: Game Explorer → Monetization → Developer Products → Create
 		local PRODUCT_ID = 3712530477
 		local MarketplaceService = game:GetService("MarketplaceService")
 
@@ -798,17 +791,118 @@ else
 		local uiScale = Instance.new("UIScale")
 		uiScale.Scale = 1
 		uiScale.Parent = hud
+		local baseHudScale = 1
 
 		local function fitScale()
 			local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-			local scale = math.clamp(viewport.Y / 720, 0.7, 1.15)
-			uiScale.Scale = scale
+			baseHudScale = math.clamp(math.min(viewport.X / 360, viewport.Y / 720, 1), 0.55, 1)
+			uiScale.Scale = baseHudScale
 		end
 		fitScale()
 		workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(fitScale)
 		if workspace.CurrentCamera then
 			workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fitScale)
 		end
+
+		local purchaseFeedback = Instance.new("Frame")
+		purchaseFeedback.Name = "CashPurchaseFeedback"
+		purchaseFeedback.AnchorPoint = Vector2.new(0.5, 0.5)
+		purchaseFeedback.Position = UDim2.fromScale(0.5, 0.42)
+		purchaseFeedback.Size = UDim2.fromOffset(250, 88)
+		purchaseFeedback.BackgroundColor3 = Color3.fromRGB(22, 30, 24)
+		purchaseFeedback.BackgroundTransparency = 0.04
+		purchaseFeedback.BorderSizePixel = 0
+		purchaseFeedback.Visible = false
+		purchaseFeedback.ZIndex = 30
+		purchaseFeedback.Parent = hud
+
+		local purchaseFeedbackCorner = Instance.new("UICorner")
+		purchaseFeedbackCorner.CornerRadius = UDim.new(0, 10)
+		purchaseFeedbackCorner.Parent = purchaseFeedback
+
+		local purchaseFeedbackStroke = Instance.new("UIStroke")
+		purchaseFeedbackStroke.Color = GREEN
+		purchaseFeedbackStroke.Thickness = 3
+		purchaseFeedbackStroke.Parent = purchaseFeedback
+
+		local purchaseTitle = Instance.new("TextLabel")
+		purchaseTitle.Position = UDim2.fromOffset(12, 14)
+		purchaseTitle.Size = UDim2.new(1, -24, 0, 28)
+		purchaseTitle.BackgroundTransparency = 1
+		purchaseTitle.Text = "THANK YOU FOR YOUR PURCHASE!"
+		purchaseTitle.TextColor3 = WHITE
+		purchaseTitle.Font = Enum.Font.GothamBlack
+		purchaseTitle.TextSize = 17
+		purchaseTitle.TextScaled = true
+		purchaseTitle.ZIndex = 31
+		purchaseTitle.Parent = purchaseFeedback
+
+		local purchaseDetail = Instance.new("TextLabel")
+		purchaseDetail.Position = UDim2.fromOffset(12, 48)
+		purchaseDetail.Size = UDim2.new(1, -24, 0, 22)
+		purchaseDetail.BackgroundTransparency = 1
+		purchaseDetail.TextColor3 = GREEN
+		purchaseDetail.Font = Enum.Font.GothamBold
+		purchaseDetail.TextSize = 15
+		purchaseDetail.ZIndex = 31
+		purchaseDetail.Parent = purchaseFeedback
+
+		local purchaseFeedbackScale = Instance.new("UIScale")
+		purchaseFeedbackScale.Scale = 1
+		purchaseFeedbackScale.Parent = purchaseFeedback
+		local purchaseFeedbackToken = 0
+
+		local function showPurchaseFeedback(cashReward: number, totalCash: number)
+			purchaseFeedbackToken += 1
+			local token = purchaseFeedbackToken
+			purchaseDetail.Text = string.format("+%d CASH   TOTAL: %d", cashReward, totalCash)
+			purchaseFeedback.Visible = true
+			purchaseFeedbackScale.Scale = 0.82
+			TweenService:Create(purchaseFeedbackScale, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Scale = 1,
+			}):Play()
+
+			TweenService:Create(uiScale, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Scale = baseHudScale * 1.05,
+			}):Play()
+			task.delay(0.12, function()
+				TweenService:Create(uiScale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					Scale = baseHudScale,
+				}):Play()
+			end)
+
+			local activeCamera = workspace.CurrentCamera
+			if activeCamera then
+				local originalFieldOfView = activeCamera.FieldOfView
+				TweenService:Create(activeCamera, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					FieldOfView = math.max(40, originalFieldOfView - 4),
+				}):Play()
+				task.delay(0.12, function()
+					if workspace.CurrentCamera == activeCamera then
+						TweenService:Create(activeCamera, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+							FieldOfView = originalFieldOfView,
+						}):Play()
+					end
+				end)
+			end
+
+			task.delay(2.2, function()
+				if purchaseFeedbackToken ~= token then
+					return
+				end
+				local hideTween = TweenService:Create(purchaseFeedbackScale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+					Scale = 0.82,
+				})
+				hideTween:Play()
+				hideTween.Completed:Once(function()
+					if purchaseFeedbackToken == token then
+						purchaseFeedback.Visible = false
+					end
+				end)
+			end)
+		end
+
+		cashPurchaseGrantedRemote.OnClientEvent:Connect(showPurchaseFeedback)
 
 		-- ===== Cash pill (small, left side) =====
 		local pill = Instance.new("Frame")
@@ -884,36 +978,7 @@ else
 		plusCorner.CornerRadius = UDim.new(1, 0)
 		plusCorner.Parent = plusButton
 
-		-- ===== Rebirths mini badge (above pill) =====
-		local rebirthBadge = Instance.new("Frame")
-		rebirthBadge.Name = "RebirthBadge"
-		rebirthBadge.AnchorPoint = Vector2.new(0, 1)
-		rebirthBadge.Position = UDim2.new(0, 16, 1, -66)
-		rebirthBadge.Size = UDim2.fromOffset(120, 32)
-		rebirthBadge.BackgroundColor3 = BLACK
-		rebirthBadge.BorderSizePixel = 0
-		rebirthBadge.Parent = hud
-
-		local rebirthBadgeCorner = Instance.new("UICorner")
-		rebirthBadgeCorner.CornerRadius = UDim.new(1, 0)
-		rebirthBadgeCorner.Parent = rebirthBadge
-
-		local rebirthBadgeStroke = Instance.new("UIStroke")
-		rebirthBadgeStroke.Color = PURPLE
-		rebirthBadgeStroke.Thickness = 2
-		rebirthBadgeStroke.Transparency = 0.2
-		rebirthBadgeStroke.Parent = rebirthBadge
-
-		local rebirthText = Instance.new("TextLabel")
-		rebirthText.BackgroundTransparency = 1
-		rebirthText.Size = UDim2.fromScale(1, 1)
-		rebirthText.Text = "✦ 0 Rebirths"
-		rebirthText.TextColor3 = PURPLE
-		rebirthText.Font = Enum.Font.GothamBold
-		rebirthText.TextSize = 14
-		rebirthText.Parent = rebirthBadge
-
-		-- ===== Menu overlay (gamepasses + rebirth), animated open/close =====
+		-- ===== Product-only menu overlay, animated open/close =====
 		-- TextButton (not Frame) so it can receive MouseButton1Click to close the menu
 		local menuOverlay = Instance.new("TextButton")
 		menuOverlay.Name = "MenuOverlay"
@@ -931,7 +996,7 @@ else
 		menuCard.Name = "MenuCard"
 		menuCard.AnchorPoint = Vector2.new(0, 1)
 		menuCard.Position = UDim2.new(0, 16, 1, -16)
-		menuCard.Size = UDim2.fromOffset(280, 0)
+		menuCard.Size = UDim2.fromOffset(260, 0)
 		menuCard.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
 		menuCard.BorderSizePixel = 0
 		menuCard.ClipsDescendants = true
@@ -948,61 +1013,27 @@ else
 		menuStroke.Transparency = 0.3
 		menuStroke.Parent = menuCard
 
-		local menuList = Instance.new("UIListLayout")
-		menuList.Padding = UDim.new(0, 8)
-		menuList.SortOrder = Enum.SortOrder.LayoutOrder
-		menuList.Parent = menuCard
-
-		local menuPadding = Instance.new("UIPadding")
-		menuPadding.PaddingTop = UDim.new(0, 14)
-		menuPadding.PaddingBottom = UDim.new(0, 14)
-		menuPadding.PaddingLeft = UDim.new(0, 14)
-		menuPadding.PaddingRight = UDim.new(0, 14)
-		menuPadding.Parent = menuCard
-
 		local menuTitle = Instance.new("TextLabel")
 		menuTitle.Name = "Title"
-		menuTitle.LayoutOrder = 1
+		menuTitle.Position = UDim2.fromOffset(14, 12)
 		menuTitle.BackgroundTransparency = 1
-		menuTitle.Size = UDim2.new(1, 0, 0, 26)
+		menuTitle.Size = UDim2.new(1, -56, 0, 26)
 		menuTitle.Text = "SHOP"
 		menuTitle.TextColor3 = WHITE
 		menuTitle.Font = Enum.Font.GothamBlack
 		menuTitle.TextSize = 20
 		menuTitle.TextXAlignment = Enum.TextXAlignment.Left
+		menuTitle.ZIndex = 12
 		menuTitle.Parent = menuCard
 
-		-- Rebirth row inside the menu
-		local rebirthRow = Instance.new("TextButton")
-		rebirthRow.Name = "RebirthRow"
-		rebirthRow.LayoutOrder = 2
-		rebirthRow.Size = UDim2.new(1, 0, 0, 52)
-		rebirthRow.BackgroundColor3 = PURPLE
-		rebirthRow.BorderSizePixel = 0
-		rebirthRow.AutoButtonColor = false
-		rebirthRow.Text = ""
-		rebirthRow.Parent = menuCard
-
-		local rebirthRowCorner = Instance.new("UICorner")
-		rebirthRowCorner.CornerRadius = UDim.new(0, 10)
-		rebirthRowCorner.Parent = rebirthRow
-
-		local rebirthRowLabel = Instance.new("TextLabel")
-		rebirthRowLabel.BackgroundTransparency = 1
-		rebirthRowLabel.Size = UDim2.fromScale(1, 1)
-		rebirthRowLabel.Text = "✦ REBIRTH — Cost $" .. tostring(REBIRTH_COST)
-		rebirthRowLabel.TextColor3 = WHITE
-		rebirthRowLabel.Font = Enum.Font.GothamBold
-		rebirthRowLabel.TextSize = 15
-		rebirthRowLabel.Parent = rebirthRow
-
-		-- ===== Gamepass row (auto-fetches name, price, and icon from MarketplaceService) =====
+		-- ===== Buy-money row (auto-fetches name, price, and icon from MarketplaceService) =====
 		local gamepassRow = Instance.new("Frame")
 		gamepassRow.Name = "GamepassRow"
-		gamepassRow.LayoutOrder = 3
-		gamepassRow.Size = UDim2.new(1, 0, 0, 64)
+		gamepassRow.Position = UDim2.fromOffset(14, 50)
+		gamepassRow.Size = UDim2.new(1, -28, 0, 64)
 		gamepassRow.BackgroundColor3 = GREEN
 		gamepassRow.BorderSizePixel = 0
+		gamepassRow.ZIndex = 12
 		gamepassRow.Parent = menuCard
 
 		local gamepassRowCorner = Instance.new("UICorner")
@@ -1016,6 +1047,7 @@ else
 		gamepassIcon.Size = UDim2.fromOffset(48, 48)
 		gamepassIcon.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
 		gamepassIcon.BorderSizePixel = 0
+		gamepassIcon.ZIndex = 13
 		gamepassIcon.Parent = gamepassRow
 
 		local gamepassIconCorner = Instance.new("UICorner")
@@ -1026,32 +1058,35 @@ else
 		gamepassIconImage.Name = "IconImage"
 		gamepassIconImage.Size = UDim2.fromScale(1, 1)
 		gamepassIconImage.BackgroundTransparency = 1
+		gamepassIconImage.ZIndex = 14
 		gamepassIconImage.Parent = gamepassIcon
 
 		-- Gamepass name
 		local gamepassNameLabel = Instance.new("TextLabel")
 		gamepassNameLabel.Name = "Name"
 		gamepassNameLabel.Position = UDim2.fromOffset(64, 6)
-		gamepassNameLabel.Size = UDim2.new(1, -150, 0, 20)
+		gamepassNameLabel.Size = UDim2.new(1, -140, 0, 20)
 		gamepassNameLabel.BackgroundTransparency = 1
 		gamepassNameLabel.Text = "GAMEPASS"
 		gamepassNameLabel.TextColor3 = BLACK
 		gamepassNameLabel.Font = Enum.Font.GothamBold
 		gamepassNameLabel.TextSize = 14
 		gamepassNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+		gamepassNameLabel.ZIndex = 13
 		gamepassNameLabel.Parent = gamepassRow
 
 		-- Gamepass price
 		local gamepassPriceLabel = Instance.new("TextLabel")
 		gamepassPriceLabel.Name = "Price"
 		gamepassPriceLabel.Position = UDim2.fromOffset(64, 28)
-		gamepassPriceLabel.Size = UDim2.new(1, -150, 0, 18)
+		gamepassPriceLabel.Size = UDim2.new(1, -140, 0, 18)
 		gamepassPriceLabel.BackgroundTransparency = 1
 		gamepassPriceLabel.Text = "— Robux"
 		gamepassPriceLabel.TextColor3 = BLACK
 		gamepassPriceLabel.Font = Enum.Font.GothamBold
 		gamepassPriceLabel.TextSize = 12
 		gamepassPriceLabel.TextXAlignment = Enum.TextXAlignment.Left
+		gamepassPriceLabel.ZIndex = 13
 		gamepassPriceLabel.Parent = gamepassRow
 
 		-- BUY button (right side) - shows the gamepass price
@@ -1059,7 +1094,7 @@ else
 		gamepassBuyButton.Name = "BuyButton"
 		gamepassBuyButton.AnchorPoint = Vector2.new(1, 0.5)
 		gamepassBuyButton.Position = UDim2.new(1, -8, 0.5, 0)
-		gamepassBuyButton.Size = UDim2.fromOffset(80, 30)
+		gamepassBuyButton.Size = UDim2.fromOffset(70, 30)
 		gamepassBuyButton.BackgroundColor3 = Color3.fromRGB(255, 200, 60)
 		gamepassBuyButton.BorderSizePixel = 0
 		gamepassBuyButton.Text = "BUY"
@@ -1067,27 +1102,12 @@ else
 		gamepassBuyButton.Font = Enum.Font.GothamBold
 		gamepassBuyButton.TextSize = 12
 		gamepassBuyButton.AutoButtonColor = false
+		gamepassBuyButton.ZIndex = 13
 		gamepassBuyButton.Parent = gamepassRow
 
 		local gamepassBuyCorner = Instance.new("UICorner")
 		gamepassBuyCorner.CornerRadius = UDim.new(0, 8)
 		gamepassBuyCorner.Parent = gamepassBuyButton
-
-		local closeButton = Instance.new("TextButton")
-		closeButton.Name = "CloseButton"
-		closeButton.LayoutOrder = 4
-		closeButton.Size = UDim2.new(1, 0, 0, 36)
-		closeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 56)
-		closeButton.BorderSizePixel = 0
-		closeButton.Text = "CLOSE"
-		closeButton.TextColor3 = WHITE
-		closeButton.Font = Enum.Font.GothamBold
-		closeButton.TextSize = 14
-		closeButton.Parent = menuCard
-
-		local closeButtonCorner = Instance.new("UICorner")
-		closeButtonCorner.CornerRadius = UDim.new(0, 8)
-		closeButtonCorner.Parent = closeButton
 
 		-- X close button (top-right corner of the menu card)
 		local closeXButton = Instance.new("TextButton")
@@ -1097,7 +1117,7 @@ else
 		closeXButton.Size = UDim2.fromOffset(28, 28)
 		closeXButton.BackgroundColor3 = Color3.fromRGB(50, 50, 56)
 		closeXButton.BorderSizePixel = 0
-		closeXButton.Text = "✕"
+		closeXButton.Text = "X"
 		closeXButton.TextColor3 = WHITE
 		closeXButton.Font = Enum.Font.GothamBold
 		closeXButton.TextSize = 16
@@ -1109,7 +1129,7 @@ else
 		closeXCorner.CornerRadius = UDim.new(1, 0)
 		closeXCorner.Parent = closeXButton
 
-		local MENU_OPEN_HEIGHT = 280
+		local MENU_OPEN_HEIGHT = 142
 		local menuOpen = false
 
 		local function setMenuOpen(open: boolean)
@@ -1120,7 +1140,7 @@ else
 				menuOverlay.Visible = true
 			end
 
-			local cardGoal = { Size = UDim2.fromOffset(280, open and MENU_OPEN_HEIGHT or 0) }
+			local cardGoal = { Size = UDim2.fromOffset(260, open and MENU_OPEN_HEIGHT or 0) }
 			local overlayGoal = { BackgroundTransparency = open and 0.55 or 1 }
 			local plusGoal = { Rotation = open and 45 or 0 }
 
@@ -1145,9 +1165,6 @@ else
 		menuOverlay.MouseButton1Click:Connect(function()
 			setMenuOpen(false)
 		end)
-		closeButton.MouseButton1Click:Connect(function()
-			setMenuOpen(false)
-		end)
 		closeXButton.MouseButton1Click:Connect(function()
 			setMenuOpen(false)
 		end)
@@ -1162,24 +1179,18 @@ else
 			end)
 		end
 		bounce(plusButton)
-		bounce(rebirthRow)
 		bounce(gamepassBuyButton)
 
 		-- Pop-in entrance animation for the whole HUD
 		pill.Size = UDim2.fromOffset(0, 44)
-		rebirthBadge.Size = UDim2.fromOffset(0, 32)
 		TweenService:Create(pill, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(150, 44) }):Play()
-		TweenService:Create(rebirthBadge, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(120, 32) }):Play()
 
 		-- Cash pop animation whenever cash increases
 		local lastCash = leaderstats.Cash.Value
 		local function updateDisplay()
 			local cash = getCashRemote:InvokeServer()
-			local rebirths = getRebirthsRemote:InvokeServer()
 
 			cashText.Text = tostring(cash)
-			rebirthText.Text = "✦ " .. tostring(rebirths) .. " Rebirths"
-			rebirthRowLabel.Text = "✦ REBIRTH — Cost $" .. tostring(REBIRTH_COST)
 
 			if cash > lastCash then
 				TweenService:Create(cashIcon, TweenInfo.new(0.1), { Size = UDim2.fromOffset(42, 42) }):Play()
@@ -1188,34 +1199,29 @@ else
 				end)
 			end
 			lastCash = cash
-
-			local canRebirth = cash >= REBIRTH_COST
-			rebirthRow.BackgroundTransparency = canRebirth and 0 or 0.55
-			rebirthRowLabel.TextTransparency = canRebirth and 0 or 0.4
 		end
 
 		leaderstats.Cash:GetPropertyChangedSignal("Value"):Connect(updateDisplay)
-		leaderstats.Rebirths:GetPropertyChangedSignal("Value"):Connect(updateDisplay)
 
-		local isRebirthProcessing = false
-		rebirthRow.MouseButton1Click:Connect(function()
-			if isRebirthProcessing then return end
-			local cash = getCashRemote:InvokeServer()
-			if cash < REBIRTH_COST then return end
-			isRebirthProcessing = true
-			rebirthRemote:InvokeServer()
-			setMenuOpen(false)
-			task.wait(0.3)
-			isRebirthProcessing = false
-		end)
+		local productAvailable = false
 
-		-- Fetch developer product info (name, price, icon) from MarketplaceService
+		local function setProductComingSoon()
+			productAvailable = false
+			gamepassNameLabel.Text = "COMING SOON..."
+			gamepassPriceLabel.Text = ""
+			gamepassIconImage.Image = ""
+			gamepassBuyButton.Text = "COMING SOON..."
+			gamepassBuyButton.Active = false
+			gamepassBuyButton.AutoButtonColor = false
+			gamepassBuyButton.BackgroundColor3 = Color3.fromRGB(115, 115, 120)
+		end
+
+		-- Fetch developer product info (name, price, and icon) from MarketplaceService.
 		local function loadProductInfo()
 			print("[GameUI] Loading developer product info for ID: " .. tostring(PRODUCT_ID))
 			
 			if PRODUCT_ID == "" or PRODUCT_ID == 0 then
-				gamepassNameLabel.Text = "PRODUCT"
-				gamepassPriceLabel.Text = "Set PRODUCT_ID in code"
+				setProductComingSoon()
 				return
 			end
 
@@ -1225,41 +1231,35 @@ else
 
 			if not success then
 				print("[GameUI] Failed to fetch product info: " .. tostring(result))
-				gamepassNameLabel.Text = "PRODUCT"
-				gamepassPriceLabel.Text = "Error loading"
+				setProductComingSoon()
 				return
 			end
 
 			local info = result
 			print("[GameUI] Product info received: " .. tostring(info and info.Name or "nil"))
-			
-			gamepassNameLabel.Text = info.Name or "PRODUCT"
-			local price = info.PriceInRobux
-			if price then
-				gamepassPriceLabel.Text = tostring(price) .. " Robux"
-				gamepassBuyButton.Text = "BUY " .. tostring(price)
-			else
-				gamepassPriceLabel.Text = "— Robux"
-				gamepassBuyButton.Text = "BUY"
+			local price = info and info.PriceInRobux
+			local iconId = info and info.IconImageAssetId
+			if not info or not info.IsForSale or type(price) ~= "number" or price <= 0 or type(iconId) ~= "number" or iconId <= 0 then
+				print(string.format(
+					"[GameUI] Product unavailable. IsForSale=%s, PriceInRobux=%s, IconImageAssetId=%s",
+					tostring(info and info.IsForSale),
+					tostring(price),
+					tostring(iconId)
+				))
+				setProductComingSoon()
+				return
 			end
 
-			-- Fetch product icon
-			local iconSuccess, iconId = pcall(function()
-				local assetInfo = MarketplaceService:GetProductInfo(PRODUCT_ID, Enum.InfoType.Asset)
-				return assetInfo.IconImageId
-			end)
-			if iconSuccess and iconId then
-				gamepassIconImage.Image = "rbxassetid://" .. tostring(iconId)
-				print("[GameUI] Product icon loaded")
-			else
-				print("[GameUI] Failed to load product icon")
-			end
+			productAvailable = true
+			gamepassNameLabel.Text = info.Name
+			gamepassPriceLabel.Text = tostring(price) .. " Robux"
+			gamepassIconImage.Image = "rbxassetid://" .. tostring(iconId)
+			gamepassBuyButton.Text = "BUY " .. tostring(price)
 		end
 		loadProductInfo()
 
 		gamepassBuyButton.MouseButton1Click:Connect(function()
-			if PRODUCT_ID == "" or PRODUCT_ID == 0 then
-				print("[GameUI] No product ID configured - set PRODUCT_ID at the top of the MoneyHUD section")
+			if not productAvailable then
 				return
 			end
 			MarketplaceService:PromptProductPurchase(player, PRODUCT_ID)
