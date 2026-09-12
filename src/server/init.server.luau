@@ -323,12 +323,15 @@ local function damagePlayersInScream(player: Player)
 					local targetIsAllowed = if sourcePlot then targetPlot == sourcePlot else targetPlot == nil
 					if screamDirection:Dot(directionToTarget) >= minimumDot and targetIsAllowed then
 						targetHumanoid:TakeDamage(5)
+						local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
+						if targetRoot and targetRoot:IsA("BasePart") then
+							targetRoot:ApplyImpulse(screamDirection * 12 * targetRoot.AssemblyMass)
+						end
 						local previous = hits[targetPlayer]
 						local hitCount = if previous and os.clock() - previous.time <= comboWindow then previous.count + 1 else 1
 						hits[targetPlayer] = { count = hitCount, time = os.clock() }
 						local remaining = 4 - hitCount
 						if hitCount >= 4 then
-							local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
 							if targetRoot and targetRoot:IsA("BasePart") then
 								targetRoot:SetNetworkOwner(nil)
 								targetHumanoid.PlatformStand = true

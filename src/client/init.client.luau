@@ -996,7 +996,7 @@ else
 		menuCard.Name = "MenuCard"
 		menuCard.AnchorPoint = Vector2.new(0, 1)
 		menuCard.Position = UDim2.new(0, 16, 1, -16)
-		menuCard.Size = UDim2.fromOffset(260, 0)
+		menuCard.Size = UDim2.fromOffset(330, 0)
 		menuCard.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
 		menuCard.BorderSizePixel = 0
 		menuCard.ClipsDescendants = true
@@ -1030,7 +1030,7 @@ else
 		local gamepassRow = Instance.new("Frame")
 		gamepassRow.Name = "GamepassRow"
 		gamepassRow.Position = UDim2.fromOffset(14, 50)
-		gamepassRow.Size = UDim2.new(1, -28, 0, 64)
+		gamepassRow.Size = UDim2.new(1, -28, 0, 70)
 		gamepassRow.BackgroundColor3 = GREEN
 		gamepassRow.BorderSizePixel = 0
 		gamepassRow.ZIndex = 12
@@ -1044,7 +1044,7 @@ else
 		local gamepassIcon = Instance.new("Frame")
 		gamepassIcon.Name = "Icon"
 		gamepassIcon.Position = UDim2.fromOffset(8, 8)
-		gamepassIcon.Size = UDim2.fromOffset(48, 48)
+		gamepassIcon.Size = UDim2.fromOffset(54, 54)
 		gamepassIcon.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
 		gamepassIcon.BorderSizePixel = 0
 		gamepassIcon.ZIndex = 13
@@ -1064,22 +1064,27 @@ else
 		-- Gamepass name
 		local gamepassNameLabel = Instance.new("TextLabel")
 		gamepassNameLabel.Name = "Name"
-		gamepassNameLabel.Position = UDim2.fromOffset(64, 6)
-		gamepassNameLabel.Size = UDim2.new(1, -140, 0, 20)
+		gamepassNameLabel.Position = UDim2.fromOffset(70, 0)
+		gamepassNameLabel.Size = UDim2.new(1, -168, 1, 0)
 		gamepassNameLabel.BackgroundTransparency = 1
 		gamepassNameLabel.Text = "GAMEPASS"
 		gamepassNameLabel.TextColor3 = BLACK
 		gamepassNameLabel.Font = Enum.Font.GothamBold
-		gamepassNameLabel.TextSize = 14
+		gamepassNameLabel.TextScaled = true
+		gamepassNameLabel.TextWrapped = true
 		gamepassNameLabel.TextXAlignment = Enum.TextXAlignment.Left
 		gamepassNameLabel.ZIndex = 13
 		gamepassNameLabel.Parent = gamepassRow
 
+		local gamepassNameSize = Instance.new("UITextSizeConstraint")
+		gamepassNameSize.MinTextSize = 11
+		gamepassNameSize.MaxTextSize = 15
+		gamepassNameSize.Parent = gamepassNameLabel
+
 		-- Gamepass price
 		local gamepassPriceLabel = Instance.new("TextLabel")
 		gamepassPriceLabel.Name = "Price"
-		gamepassPriceLabel.Position = UDim2.fromOffset(64, 28)
-		gamepassPriceLabel.Size = UDim2.new(1, -140, 0, 18)
+		gamepassPriceLabel.Visible = false
 		gamepassPriceLabel.BackgroundTransparency = 1
 		gamepassPriceLabel.Text = "— Robux"
 		gamepassPriceLabel.TextColor3 = BLACK
@@ -1094,7 +1099,7 @@ else
 		gamepassBuyButton.Name = "BuyButton"
 		gamepassBuyButton.AnchorPoint = Vector2.new(1, 0.5)
 		gamepassBuyButton.Position = UDim2.new(1, -8, 0.5, 0)
-		gamepassBuyButton.Size = UDim2.fromOffset(70, 30)
+		gamepassBuyButton.Size = UDim2.fromOffset(82, 34)
 		gamepassBuyButton.BackgroundColor3 = Color3.fromRGB(255, 200, 60)
 		gamepassBuyButton.BorderSizePixel = 0
 		gamepassBuyButton.Text = "BUY"
@@ -1129,7 +1134,7 @@ else
 		closeXCorner.CornerRadius = UDim.new(1, 0)
 		closeXCorner.Parent = closeXButton
 
-		local MENU_OPEN_HEIGHT = 142
+		local MENU_OPEN_HEIGHT = 148
 		local menuOpen = false
 
 		local function setMenuOpen(open: boolean)
@@ -1140,7 +1145,7 @@ else
 				menuOverlay.Visible = true
 			end
 
-			local cardGoal = { Size = UDim2.fromOffset(260, open and MENU_OPEN_HEIGHT or 0) }
+			local cardGoal = { Size = UDim2.fromOffset(330, open and MENU_OPEN_HEIGHT or 0) }
 			local overlayGoal = { BackgroundTransparency = open and 0.55 or 1 }
 			local plusGoal = { Rotation = open and 45 or 0 }
 
@@ -1208,7 +1213,6 @@ else
 		local function setProductComingSoon()
 			productAvailable = false
 			gamepassNameLabel.Text = "COMING SOON..."
-			gamepassPriceLabel.Text = ""
 			gamepassIconImage.Image = ""
 			gamepassBuyButton.Text = "COMING SOON..."
 			gamepassBuyButton.Active = false
@@ -1252,9 +1256,8 @@ else
 
 			productAvailable = true
 			gamepassNameLabel.Text = info.Name
-			gamepassPriceLabel.Text = tostring(price) .. " Robux"
 			gamepassIconImage.Image = "rbxassetid://" .. tostring(iconId)
-			gamepassBuyButton.Text = "BUY " .. tostring(price)
+			gamepassBuyButton.Text = "R$" .. tostring(price)
 		end
 		loadProductInfo()
 
