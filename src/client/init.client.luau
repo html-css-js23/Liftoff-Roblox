@@ -781,6 +781,12 @@ else
 		local PURPLE = Color3.fromRGB(170, 110, 255)
 		local REBIRTH_COST = 1000
 
+		-- ===== Developer Product configuration =====
+		-- TODO: Replace with your actual developer product ID from Roblox monetization settings
+		-- To create a developer product: Game Explorer → Monetization → Developer Products → Create
+		local PRODUCT_ID = 3712530477
+		local MarketplaceService = game:GetService("MarketplaceService")
+
 		local hud = Instance.new("ScreenGui")
 		hud.Name = "MoneyHUD"
 		hud.ResetOnSpawn = false
@@ -908,13 +914,17 @@ else
 		rebirthText.Parent = rebirthBadge
 
 		-- ===== Menu overlay (gamepasses + rebirth), animated open/close =====
-		local menuOverlay = Instance.new("Frame")
+		-- TextButton (not Frame) so it can receive MouseButton1Click to close the menu
+		local menuOverlay = Instance.new("TextButton")
 		menuOverlay.Name = "MenuOverlay"
 		menuOverlay.BackgroundColor3 = BLACK
 		menuOverlay.BackgroundTransparency = 1
 		menuOverlay.Size = UDim2.fromScale(1, 1)
 		menuOverlay.Visible = false
 		menuOverlay.ZIndex = 10
+		menuOverlay.Text = ""
+		menuOverlay.TextColor3 = WHITE
+		menuOverlay.AutoButtonColor = false
 		menuOverlay.Parent = hud
 
 		local menuCard = Instance.new("Frame")
@@ -986,29 +996,82 @@ else
 		rebirthRowLabel.TextSize = 15
 		rebirthRowLabel.Parent = rebirthRow
 
-		-- Example gamepass row (placeholder, easy to duplicate for more passes)
-		local gamepassRow = Instance.new("TextButton")
+		-- ===== Gamepass row (auto-fetches name, price, and icon from MarketplaceService) =====
+		local gamepassRow = Instance.new("Frame")
 		gamepassRow.Name = "GamepassRow"
 		gamepassRow.LayoutOrder = 3
-		gamepassRow.Size = UDim2.new(1, 0, 0, 52)
+		gamepassRow.Size = UDim2.new(1, 0, 0, 64)
 		gamepassRow.BackgroundColor3 = GREEN
 		gamepassRow.BorderSizePixel = 0
-		gamepassRow.AutoButtonColor = false
-		gamepassRow.Text = ""
 		gamepassRow.Parent = menuCard
 
 		local gamepassRowCorner = Instance.new("UICorner")
 		gamepassRowCorner.CornerRadius = UDim.new(0, 10)
 		gamepassRowCorner.Parent = gamepassRow
 
-		local gamepassRowLabel = Instance.new("TextLabel")
-		gamepassRowLabel.BackgroundTransparency = 1
-		gamepassRowLabel.Size = UDim2.fromScale(1, 1)
-		gamepassRowLabel.Text = "💎 2x CASH GAMEPASS"
-		gamepassRowLabel.TextColor3 = BLACK
-		gamepassRowLabel.Font = Enum.Font.GothamBold
-		gamepassRowLabel.TextSize = 15
-		gamepassRowLabel.Parent = gamepassRow
+		-- Gamepass icon (48x48, top-left)
+		local gamepassIcon = Instance.new("Frame")
+		gamepassIcon.Name = "Icon"
+		gamepassIcon.Position = UDim2.fromOffset(8, 8)
+		gamepassIcon.Size = UDim2.fromOffset(48, 48)
+		gamepassIcon.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+		gamepassIcon.BorderSizePixel = 0
+		gamepassIcon.Parent = gamepassRow
+
+		local gamepassIconCorner = Instance.new("UICorner")
+		gamepassIconCorner.CornerRadius = UDim.new(0, 8)
+		gamepassIconCorner.Parent = gamepassIcon
+
+		local gamepassIconImage = Instance.new("ImageLabel")
+		gamepassIconImage.Name = "IconImage"
+		gamepassIconImage.Size = UDim2.fromScale(1, 1)
+		gamepassIconImage.BackgroundTransparency = 1
+		gamepassIconImage.Parent = gamepassIcon
+
+		-- Gamepass name
+		local gamepassNameLabel = Instance.new("TextLabel")
+		gamepassNameLabel.Name = "Name"
+		gamepassNameLabel.Position = UDim2.fromOffset(64, 6)
+		gamepassNameLabel.Size = UDim2.new(1, -150, 0, 20)
+		gamepassNameLabel.BackgroundTransparency = 1
+		gamepassNameLabel.Text = "GAMEPASS"
+		gamepassNameLabel.TextColor3 = BLACK
+		gamepassNameLabel.Font = Enum.Font.GothamBold
+		gamepassNameLabel.TextSize = 14
+		gamepassNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+		gamepassNameLabel.Parent = gamepassRow
+
+		-- Gamepass price
+		local gamepassPriceLabel = Instance.new("TextLabel")
+		gamepassPriceLabel.Name = "Price"
+		gamepassPriceLabel.Position = UDim2.fromOffset(64, 28)
+		gamepassPriceLabel.Size = UDim2.new(1, -150, 0, 18)
+		gamepassPriceLabel.BackgroundTransparency = 1
+		gamepassPriceLabel.Text = "— Robux"
+		gamepassPriceLabel.TextColor3 = BLACK
+		gamepassPriceLabel.Font = Enum.Font.GothamBold
+		gamepassPriceLabel.TextSize = 12
+		gamepassPriceLabel.TextXAlignment = Enum.TextXAlignment.Left
+		gamepassPriceLabel.Parent = gamepassRow
+
+		-- BUY button (right side) - shows the gamepass price
+		local gamepassBuyButton = Instance.new("TextButton")
+		gamepassBuyButton.Name = "BuyButton"
+		gamepassBuyButton.AnchorPoint = Vector2.new(1, 0.5)
+		gamepassBuyButton.Position = UDim2.new(1, -8, 0.5, 0)
+		gamepassBuyButton.Size = UDim2.fromOffset(80, 30)
+		gamepassBuyButton.BackgroundColor3 = Color3.fromRGB(255, 200, 60)
+		gamepassBuyButton.BorderSizePixel = 0
+		gamepassBuyButton.Text = "BUY"
+		gamepassBuyButton.TextColor3 = BLACK
+		gamepassBuyButton.Font = Enum.Font.GothamBold
+		gamepassBuyButton.TextSize = 12
+		gamepassBuyButton.AutoButtonColor = false
+		gamepassBuyButton.Parent = gamepassRow
+
+		local gamepassBuyCorner = Instance.new("UICorner")
+		gamepassBuyCorner.CornerRadius = UDim.new(0, 8)
+		gamepassBuyCorner.Parent = gamepassBuyButton
 
 		local closeButton = Instance.new("TextButton")
 		closeButton.Name = "CloseButton"
@@ -1026,7 +1089,27 @@ else
 		closeButtonCorner.CornerRadius = UDim.new(0, 8)
 		closeButtonCorner.Parent = closeButton
 
-		local MENU_OPEN_HEIGHT = 226
+		-- X close button (top-right corner of the menu card)
+		local closeXButton = Instance.new("TextButton")
+		closeXButton.Name = "CloseXButton"
+		closeXButton.AnchorPoint = Vector2.new(1, 0)
+		closeXButton.Position = UDim2.new(1, -8, 0, 4)
+		closeXButton.Size = UDim2.fromOffset(28, 28)
+		closeXButton.BackgroundColor3 = Color3.fromRGB(50, 50, 56)
+		closeXButton.BorderSizePixel = 0
+		closeXButton.Text = "✕"
+		closeXButton.TextColor3 = WHITE
+		closeXButton.Font = Enum.Font.GothamBold
+		closeXButton.TextSize = 16
+		closeXButton.AutoButtonColor = false
+		closeXButton.ZIndex = 12
+		closeXButton.Parent = menuCard
+
+		local closeXCorner = Instance.new("UICorner")
+		closeXCorner.CornerRadius = UDim.new(1, 0)
+		closeXCorner.Parent = closeXButton
+
+		local MENU_OPEN_HEIGHT = 280
 		local menuOpen = false
 
 		local function setMenuOpen(open: boolean)
@@ -1065,6 +1148,9 @@ else
 		closeButton.MouseButton1Click:Connect(function()
 			setMenuOpen(false)
 		end)
+		closeXButton.MouseButton1Click:Connect(function()
+			setMenuOpen(false)
+		end)
 
 		-- Small press animation, common in "brainrot" style game UIs
 		local function bounce(target: TextButton)
@@ -1077,7 +1163,7 @@ else
 		end
 		bounce(plusButton)
 		bounce(rebirthRow)
-		bounce(gamepassRow)
+		bounce(gamepassBuyButton)
 
 		-- Pop-in entrance animation for the whole HUD
 		pill.Size = UDim2.fromOffset(0, 44)
@@ -1123,9 +1209,60 @@ else
 			isRebirthProcessing = false
 		end)
 
-		gamepassRow.MouseButton1Click:Connect(function()
-			-- Hook up MarketplaceService:PromptGamePassPurchase here once gamepass IDs exist
-			print("[GameUI] Gamepass row clicked - wire up gamepass id here")
+		-- Fetch developer product info (name, price, icon) from MarketplaceService
+		local function loadProductInfo()
+			print("[GameUI] Loading developer product info for ID: " .. tostring(PRODUCT_ID))
+			
+			if PRODUCT_ID == "" or PRODUCT_ID == 0 then
+				gamepassNameLabel.Text = "PRODUCT"
+				gamepassPriceLabel.Text = "Set PRODUCT_ID in code"
+				return
+			end
+
+			local success, result = pcall(function()
+				return MarketplaceService:GetProductInfo(PRODUCT_ID, Enum.InfoType.Product)
+			end)
+
+			if not success then
+				print("[GameUI] Failed to fetch product info: " .. tostring(result))
+				gamepassNameLabel.Text = "PRODUCT"
+				gamepassPriceLabel.Text = "Error loading"
+				return
+			end
+
+			local info = result
+			print("[GameUI] Product info received: " .. tostring(info and info.Name or "nil"))
+			
+			gamepassNameLabel.Text = info.Name or "PRODUCT"
+			local price = info.PriceInRobux
+			if price then
+				gamepassPriceLabel.Text = tostring(price) .. " Robux"
+				gamepassBuyButton.Text = "BUY " .. tostring(price)
+			else
+				gamepassPriceLabel.Text = "— Robux"
+				gamepassBuyButton.Text = "BUY"
+			end
+
+			-- Fetch product icon
+			local iconSuccess, iconId = pcall(function()
+				local assetInfo = MarketplaceService:GetProductInfo(PRODUCT_ID, Enum.InfoType.Asset)
+				return assetInfo.IconImageId
+			end)
+			if iconSuccess and iconId then
+				gamepassIconImage.Image = "rbxassetid://" .. tostring(iconId)
+				print("[GameUI] Product icon loaded")
+			else
+				print("[GameUI] Failed to load product icon")
+			end
+		end
+		loadProductInfo()
+
+		gamepassBuyButton.MouseButton1Click:Connect(function()
+			if PRODUCT_ID == "" or PRODUCT_ID == 0 then
+				print("[GameUI] No product ID configured - set PRODUCT_ID at the top of the MoneyHUD section")
+				return
+			end
+			MarketplaceService:PromptProductPurchase(player, PRODUCT_ID)
 		end)
 
 		updateDisplay()

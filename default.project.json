@@ -8,12 +8,19 @@
     },
 
     "ServerScriptService": {
-      "$path": "src/server"
+      "$className": "ServerScriptService",
+      "Server": {
+        "$path": "src/server"
+      }
     },
 
     "StarterPlayer": {
-      "StarterGui": {
-        "$path": "src/client"
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "Client": {
+          "$path": "src/client"
+        }
       }
     },
 
